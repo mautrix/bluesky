@@ -32,7 +32,7 @@ func (b *BlueskyConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilitie
 }
 
 var roomCaps = &bridgev2.NetworkRoomCapabilities{
-	MaxTextLength: 0, // TODO
+	MaxTextLength: 10000,
 }
 
 func (b *BlueskyClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *bridgev2.NetworkRoomCapabilities {

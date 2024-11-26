@@ -48,7 +48,7 @@ func (b *BlueskyClient) wrapChatInfo(ctx context.Context, chatInfo *chat.ConvoDe
 			MemberMap:        make(map[networkid.UserID]bridgev2.ChatMember, len(chatInfo.Members)),
 		},
 		UserLocal:   &bridgev2.UserLocalPortalInfo{},
-		CanBackfill: true,
+		CanBackfill: false, // Backward backfill isn't supported yet
 	}
 	if chatInfo.Muted {
 		info.UserLocal.MutedUntil = &event.MutedForever

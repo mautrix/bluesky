@@ -18,6 +18,8 @@ package connector
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -27,59 +29,103 @@ import (
 	"maunium.net/go/mautrix/event"
 )
 
-func (b *BlueskyClient) HandleEvent(evt *chat.ConvoGetLog_Output_Logs_Elem) {
+func (b *BlueskyClient) HandleEvent(ctx context.Context, evt *chat.ConvoGetLog_Output_Logs_Elem) {
 	switch {
 	case evt.ConvoDefs_LogCreateMessage != nil:
-		b.HandleNewMessage(evt.ConvoDefs_LogCreateMessage)
+		b.HandleNewMessage(ctx, evt.ConvoDefs_LogCreateMessage)
 	}
 }
 
-func (b *BlueskyClient) HandleNewMessage(evt *chat.ConvoDefs_LogCreateMessage) {
-	msg := evt.Message.ConvoDefs_MessageView
-	if msg == nil {
-		// TODO bridge placeholders for deleted messages?
-		return
-	}
-	evtSender, err := b.makeEventSender(msg.Sender.Did)
+func (b *BlueskyClient) HandleNewMessage(ctx context.Context, evt *chat.ConvoDefs_LogCreateMessage) {
+	sender, sentAt, msgID, msgData, err := b.parseMessageDetails(evt.Message.ConvoDefs_MessageView, evt.Message.ConvoDefs_DeletedMessageView)
 	if err != nil {
-		// TODO log
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to parse message details")
 		return
 	}
-	sentAt, err := syntax.ParseDatetimeTime(msg.SentAt)
-	if err != nil {
-		// TODO log
-		return
-	}
-	b.UserLogin.QueueRemoteEvent(&simplevent.Message[*chat.ConvoDefs_MessageView]{
+	b.UserLogin.QueueRemoteEvent(&simplevent.Message[any]{
 		EventMeta: simplevent.EventMeta{
 			Type: bridgev2.RemoteEventMessage,
 			LogContext: func(c zerolog.Context) zerolog.Context {
 				return c.
 					Str("chat_id", evt.ConvoId).
 					Str("rev", evt.Rev).
-					Str("message_id", msg.Id).
-					Str("sender_did", msg.Sender.Did)
+					Str("message_id", msgID).
+					Str("sender_id", string(sender.Sender))
 			},
 			PortalKey:    b.makePortalKey(evt.ConvoId),
-			Sender:       evtSender,
+			Sender:       sender,
 			CreatePortal: true,
 			Timestamp:    sentAt,
 			StreamOrder:  sentAt.UnixMilli(),
 		},
-		Data:               msg,
-		ID:                 makeMessageID(makePortalID(evt.ConvoId), msg.Id),
-		ConvertMessageFunc: b.convertMessage,
+		Data:               msgData,
+		ID:                 makeMessageID(makePortalID(evt.ConvoId), msgID),
+		ConvertMessageFunc: convertMessage,
 	})
 }
 
-func (b *BlueskyClient) convertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, data *chat.ConvoDefs_MessageView) (*bridgev2.ConvertedMessage, error) {
-	return &bridgev2.ConvertedMessage{
-		Parts: []*bridgev2.ConvertedMessagePart{{
-			Type: event.EventMessage,
-			Content: &event.MessageEventContent{
-				MsgType: event.MsgText,
-				Body:    data.Text,
-			},
-		}},
-	}, nil
+func (b *BlueskyClient) parseMessageDetails(
+	msgView *chat.ConvoDefs_MessageView, deletedMsgView *chat.ConvoDefs_DeletedMessageView,
+) (evtSender bridgev2.EventSender, sentAt time.Time, msgID string, msgData any, err error) {
+	var senderDID, sentAtStr string
+	if msgView != nil {
+		senderDID = msgView.Sender.Did
+		sentAtStr = msgView.SentAt
+		msgID = msgView.Id
+		msgData = msgView
+	} else if deletedMsgView != nil {
+		senderDID = deletedMsgView.Sender.Did
+		sentAtStr = deletedMsgView.SentAt
+		msgID = deletedMsgView.Id
+		msgData = deletedMsgView
+	} else {
+		err = fmt.Errorf("no message view or deleted message view")
+		return
+	}
+	evtSender, err = b.makeEventSender(senderDID)
+	if err != nil {
+		err = fmt.Errorf("failed to parse sender DID: %w", err)
+		return
+	}
+	sentAt, err = syntax.ParseDatetimeTime(sentAtStr)
+	if err != nil {
+		err = fmt.Errorf("failed to parse sentAt: %w", err)
+		return
+	}
+	return
+}
+
+func convertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, data any) (*bridgev2.ConvertedMessage, error) {
+	switch typedData := any(data).(type) {
+	case *chat.ConvoDefs_MessageView:
+		return &bridgev2.ConvertedMessage{
+			Parts: []*bridgev2.ConvertedMessagePart{{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgText,
+					Body:    typedData.Text,
+				},
+			}},
+		}, nil
+	case *chat.ConvoDefs_DeletedMessageView:
+		return &bridgev2.ConvertedMessage{
+			Parts: []*bridgev2.ConvertedMessagePart{{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    "Deleted message",
+				},
+			}},
+		}, nil
+	default:
+		return &bridgev2.ConvertedMessage{
+			Parts: []*bridgev2.ConvertedMessagePart{{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    "Unsupported message",
+				},
+			}},
+		}, nil
+	}
 }

@@ -171,9 +171,12 @@ func (b *BlueskyClient) fetchInbox(ctx context.Context) error {
 	}
 	for _, chatInfo := range chats.Convos {
 		var latestMessageTS time.Time
-		// TODO handle last message being deleted here and in backfill
-		if chatInfo.LastMessage != nil && chatInfo.LastMessage.ConvoDefs_MessageView != nil {
-			latestMessageTS, _ = syntax.ParseDatetimeTime(chatInfo.LastMessage.ConvoDefs_MessageView.SentAt)
+		if chatInfo.LastMessage != nil {
+			if chatInfo.LastMessage.ConvoDefs_MessageView != nil {
+				latestMessageTS, _ = syntax.ParseDatetimeTime(chatInfo.LastMessage.ConvoDefs_MessageView.SentAt)
+			} else if chatInfo.LastMessage.ConvoDefs_DeletedMessageView != nil {
+				latestMessageTS, _ = syntax.ParseDatetimeTime(chatInfo.LastMessage.ConvoDefs_DeletedMessageView.SentAt)
+			}
 		}
 		b.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
 			EventMeta: simplevent.EventMeta{
@@ -186,7 +189,7 @@ func (b *BlueskyClient) fetchInbox(ctx context.Context) error {
 			},
 			ChatInfo:            b.wrapChatInfo(ctx, chatInfo),
 			LatestMessageTS:     latestMessageTS,
-			BundledBackfillData: chatInfo.LastMessage,
+			BundledBackfillData: chatInfo,
 		})
 	}
 	return nil
@@ -254,7 +257,7 @@ func (b *BlueskyClient) pollOnce(ctx context.Context) error {
 		return err
 	}
 	for _, log := range resp.Logs {
-		b.HandleEvent(log)
+		b.HandleEvent(ctx, log)
 	}
 	if resp.Cursor != nil && *resp.Cursor != meta.Cursor {
 		meta.Cursor = *resp.Cursor
