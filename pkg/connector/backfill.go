@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/rs/zerolog"
@@ -35,6 +36,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 	if err != nil {
 		return nil, err
 	}
+	slices.Reverse(resp.Messages)
 	convertedMessages := make([]*bridgev2.BackfillMessage, 0, len(resp.Messages))
 	for _, msg := range resp.Messages {
 		sender, sentAt, msgID, msgData, err := b.parseMessageDetails(msg.ConvoDefs_MessageView, msg.ConvoDefs_DeletedMessageView)

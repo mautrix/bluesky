@@ -70,13 +70,13 @@ func makeMessageID(chatID networkid.PortalID, msgID string) networkid.MessageID 
 	return networkid.MessageID(fmt.Sprintf("%s:%s", chatID, msgID))
 }
 
-//func parseMessageID(id networkid.MessageID) (networkid.PortalID, string) {
-//	parts := strings.SplitN(string(id), ":", 2)
-//	if len(parts) != 2 {
-//		return "", ""
-//	}
-//	return networkid.PortalID(parts[0]), parts[1]
-//}
+func parseMessageID(id networkid.MessageID) (networkid.PortalID, string) {
+	parts := strings.SplitN(string(id), ":", 2)
+	if len(parts) != 2 {
+		return "", ""
+	}
+	return networkid.PortalID(parts[0]), parts[1]
+}
 
 func (b *BlueskyClient) makeEventSender(userDID string) (bridgev2.EventSender, error) {
 	userID, err := makeUserIDFromString(userDID)

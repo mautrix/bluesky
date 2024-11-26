@@ -30,9 +30,11 @@ import (
 )
 
 func (b *BlueskyClient) HandleEvent(ctx context.Context, evt *chat.ConvoGetLog_Output_Logs_Elem) {
+	zerolog.Ctx(ctx).Trace().Any("evt", evt).Msg("Received event")
 	switch {
 	case evt.ConvoDefs_LogCreateMessage != nil:
 		b.HandleNewMessage(ctx, evt.ConvoDefs_LogCreateMessage)
+	default:
 	}
 }
 

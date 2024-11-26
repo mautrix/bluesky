@@ -22,8 +22,13 @@ import (
 
 	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+)
+
+var (
+	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*BlueskyClient)(nil)
 )
 
 func (b *BlueskyClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
@@ -55,4 +60,20 @@ func (b *BlueskyClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.M
 		},
 		StreamOrder: sentAt.UnixMilli(),
 	}, nil
+}
+
+func (b *BlueskyClient) HandleMatrixReadReceipt(ctx context.Context, msg *bridgev2.MatrixReadReceipt) error {
+	var msgID *string
+	if msg.ExactMessage != nil {
+		_, msgIDVal := parseMessageID(msg.ExactMessage.ID)
+		if msgIDVal != "" {
+			msgID = &msgIDVal
+		}
+	}
+	resp, err := chat.ConvoUpdateRead(ctx, b.ChatRPC, &chat.ConvoUpdateRead_Input{
+		ConvoId:   parsePortalID(msg.Portal.ID),
+		MessageId: msgID,
+	})
+	zerolog.Ctx(ctx).Trace().Any("resp", resp).Err(err).Msg("Read receipt bridged")
+	return err
 }
