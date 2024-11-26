@@ -1,5 +1,5 @@
 # mautrix-bluesky
-A Matrix-Bluesky puppeting bridge.
+A Matrix-Bluesky DM puppeting bridge.
 
 ## Documentation
 There's no documentation yet :(
