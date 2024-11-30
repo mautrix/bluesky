@@ -211,7 +211,7 @@ func (b *BlueskyClient) startPolling() {
 		log.Debug().Msg("Stopped polling")
 	}()
 	ctxDone := ctx.Done()
-	isErroring := false
+	isErroring := true
 	for {
 		err := b.pollOnce(ctx)
 		if err != nil {
