@@ -73,7 +73,7 @@ type BlueskyClient struct {
 
 var _ bridgev2.NetworkAPI = (*BlueskyClient)(nil)
 
-func (b *BlueskyClient) Connect(ctx context.Context) error {
+func (b *BlueskyClient) Connect(ctx context.Context) {
 	b.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 	err := b.refreshToken(ctx)
 	if err != nil {
@@ -82,14 +82,13 @@ func (b *BlueskyClient) Connect(ctx context.Context) error {
 			StateEvent: status.StateUnknownError,
 			Error:      "bsky-token-refresh-failed",
 		})
-		return nil
+		return
 	}
 	err = b.fetchInbox(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to fetch inbox during startup")
 	}
 	go b.startPolling()
-	return nil
 }
 
 func (b *BlueskyClient) refreshToken(ctx context.Context) error {

@@ -11,7 +11,7 @@ require (
 	github.com/whyrusleeping/go-did v0.0.0-20230824162731-404d1707d5d6
 	go.mau.fi/util v0.8.2
 	gopkg.in/yaml.v3 v3.0.1
-	maunium.net/go/mautrix v0.22.1-0.20241126125002-0384e800fd3e
+	maunium.net/go/mautrix v0.22.1-0.20241202131110-166ba04aae02
 )
 
 require (
