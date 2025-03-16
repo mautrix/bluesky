@@ -30,10 +30,10 @@ import (
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/simplevent"
+	"maunium.net/go/mautrix/bridgev2/status"
 )
 
 func (b *BlueskyConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {
@@ -164,7 +164,7 @@ func (b *BlueskyClient) nextAccessTokenExpiry() time.Time {
 func (b *BlueskyClient) fetchInbox(ctx context.Context) error {
 	const limit = 20
 	// TODO support paginating list
-	chats, err := chat.ConvoListConvos(ctx, b.ChatRPC, "", limit)
+	chats, err := chat.ConvoListConvos(ctx, b.ChatRPC, "", limit, "", "")
 	if err != nil {
 		return err
 	}

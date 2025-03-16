@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/event"
 )
 
 var generalCaps = &bridgev2.NetworkGeneralCapabilities{
@@ -31,10 +32,15 @@ func (b *BlueskyConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilitie
 	return generalCaps
 }
 
-var roomCaps = &bridgev2.NetworkRoomCapabilities{
+func (b *BlueskyConnector) GetBridgeInfoVersion() (info, capabilities int) {
+	return 1, 1
+}
+
+var roomCaps = &event.RoomFeatures{
+	ID:            "fi.mau.bluesky.capabilities.2025_03_16",
 	MaxTextLength: 10000,
 }
 
-func (b *BlueskyClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *bridgev2.NetworkRoomCapabilities {
+func (b *BlueskyClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
 	return roomCaps
 }
