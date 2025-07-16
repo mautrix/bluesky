@@ -1,3 +1,7 @@
+# v0.1.2 (2025-07-16)
+
+* Updated Docker image to Alpine 3.22.
+
 # v0.1.1 (2025-03-16)
 
 No significant changes.
