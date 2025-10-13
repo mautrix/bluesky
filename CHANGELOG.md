@@ -1,3 +1,7 @@
+# v25.10 (unreleased)
+
+* Switched to calendar versioning.
+
 # v0.1.2 (2025-07-16)
 
 * Updated Docker image to Alpine 3.22.
