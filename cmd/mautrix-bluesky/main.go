@@ -35,7 +35,8 @@ var m = mxmain.BridgeMain{
 	Name:        "mautrix-bluesky",
 	URL:         "https://github.com/mautrix/bluesky",
 	Description: "A Matrix-Bluesky puppeting bridge.",
-	Version:     "0.1.2",
+	Version:     "25.10",
+	SemCalVer:   true,
 	Connector:   c,
 }
 
