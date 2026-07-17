@@ -144,15 +144,7 @@ func (p *PasswordLogin) SubmitUserInput(ctx context.Context, input map[string]st
 	if err != nil {
 		return nil, fmt.Errorf("failed to save new login: %w", err)
 	}
-	ul.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
-	go func(ctx context.Context) {
-		bc := ul.Client.(*BlueskyClient)
-		err = bc.fetchInbox(ctx)
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to fetch inbox after login")
-		}
-		bc.startPolling()
-	}(context.WithoutCancel(ctx))
+	go ul.Client.Connect(context.WithoutCancel(ctx))
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
 		StepID:       "fi.mau.bluesky.complete",
