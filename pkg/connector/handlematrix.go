@@ -23,12 +23,15 @@ import (
 	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/variationselector"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 )
 
 var (
 	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*BlueskyClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI    = (*BlueskyClient)(nil)
 )
 
 func (b *BlueskyClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
@@ -60,6 +63,52 @@ func (b *BlueskyClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.M
 		},
 		StreamOrder: sentAt.UnixMilli(),
 	}, nil
+}
+
+// maxReactionsPerMessage is the ReactionLimitReached threshold enforced by chat.bsky.convo.addReaction.
+const maxReactionsPerMessage = 5
+
+func (b *BlueskyClient) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
+	senderID, err := makeUserIDFromString(parseUserLoginID(b.UserLogin.ID))
+	if err != nil {
+		return bridgev2.MatrixReactionPreResponse{}, fmt.Errorf("failed to parse own DID: %w", err)
+	}
+	emoji := variationselector.FullyQualify(msg.Content.RelatesTo.Key)
+	return bridgev2.MatrixReactionPreResponse{
+		SenderID:     senderID,
+		EmojiID:      networkid.EmojiID(emoji),
+		Emoji:        emoji,
+		MaxReactions: maxReactionsPerMessage,
+	}, nil
+}
+
+func (b *BlueskyClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (*database.Reaction, error) {
+	_, msgID := parseMessageID(msg.TargetMessage.ID)
+	if msgID == "" {
+		return nil, fmt.Errorf("failed to parse target message ID")
+	}
+	_, err := chat.ConvoAddReaction(ctx, b.ChatRPC, &chat.ConvoAddReaction_Input{
+		ConvoId:   parsePortalID(msg.Portal.ID),
+		MessageId: msgID,
+		Value:     msg.PreHandleResp.Emoji,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &database.Reaction{}, nil
+}
+
+func (b *BlueskyClient) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
+	_, msgID := parseMessageID(msg.TargetReaction.MessageID)
+	if msgID == "" {
+		return fmt.Errorf("failed to parse target message ID")
+	}
+	_, err := chat.ConvoRemoveReaction(ctx, b.ChatRPC, &chat.ConvoRemoveReaction_Input{
+		ConvoId:   parsePortalID(msg.Portal.ID),
+		MessageId: msgID,
+		Value:     string(msg.TargetReaction.EmojiID),
+	})
+	return err
 }
 
 func (b *BlueskyClient) HandleMatrixReadReceipt(ctx context.Context, msg *bridgev2.MatrixReadReceipt) error {

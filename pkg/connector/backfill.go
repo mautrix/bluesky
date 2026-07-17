@@ -22,8 +22,11 @@ import (
 	"slices"
 
 	"github.com/bluesky-social/indigo/api/chat"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/variationselector"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 )
 
 var _ bridgev2.BackfillingNetworkAPI = (*BlueskyClient)(nil)
@@ -57,6 +60,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 			ID:               makeMessageID(params.Portal.ID, msgID),
 			Timestamp:        sentAt,
 			StreamOrder:      sentAt.UnixMilli(),
+			Reactions:        b.convertBackfillReactions(ctx, msg.ConvoDefs_MessageView),
 		})
 	}
 	chatInfo, ok := params.BundledData.(*chat.ConvoDefs_ConvoView)
@@ -65,4 +69,32 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 		Forward:  true,
 		MarkRead: ok && chatInfo != nil && chatInfo.UnreadCount == 0,
 	}, nil
+}
+
+func (b *BlueskyClient) convertBackfillReactions(ctx context.Context, msgView *chat.ConvoDefs_MessageView) []*bridgev2.BackfillReaction {
+	if msgView == nil || len(msgView.Reactions) == 0 {
+		return nil
+	}
+	reactions := make([]*bridgev2.BackfillReaction, 0, len(msgView.Reactions))
+	for _, reaction := range msgView.Reactions {
+		if reaction == nil || reaction.Sender == nil {
+			continue
+		}
+		sender, err := b.makeEventSender(reaction.Sender.Did)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to parse reaction sender DID")
+			continue
+		}
+		emoji := variationselector.FullyQualify(reaction.Value)
+		backfillReaction := &bridgev2.BackfillReaction{
+			Sender:  sender,
+			EmojiID: networkid.EmojiID(emoji),
+			Emoji:   emoji,
+		}
+		if createdAt, err := syntax.ParseDatetimeTime(reaction.CreatedAt); err == nil {
+			backfillReaction.Timestamp = createdAt
+		}
+		reactions = append(reactions, backfillReaction)
+	}
+	return reactions
 }

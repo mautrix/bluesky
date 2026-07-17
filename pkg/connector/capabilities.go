@@ -33,12 +33,14 @@ func (b *BlueskyConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilitie
 }
 
 func (b *BlueskyConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 1
+	return 1, 2
 }
 
 var roomCaps = &event.RoomFeatures{
-	ID:            "fi.mau.bluesky.capabilities.2025_03_16",
+	ID:            "fi.mau.bluesky.capabilities.2026_07_17",
 	MaxTextLength: 10000,
+	Reaction:      event.CapLevelFullySupported,
+	ReactionCount: maxReactionsPerMessage,
 }
 
 func (b *BlueskyClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {

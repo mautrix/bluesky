@@ -1,6 +1,7 @@
 # v25.10
 
 * Switched to calendar versioning.
+* Added support for reactions in both directions, including backfill.
 
 # v0.1.2 (2025-07-16)
 

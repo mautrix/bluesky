@@ -24,7 +24,9 @@ import (
 	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/variationselector"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/simplevent"
 	"maunium.net/go/mautrix/event"
 )
@@ -34,8 +36,61 @@ func (b *BlueskyClient) HandleEvent(ctx context.Context, evt *chat.ConvoGetLog_O
 	switch {
 	case evt.ConvoDefs_LogCreateMessage != nil:
 		b.HandleNewMessage(ctx, evt.ConvoDefs_LogCreateMessage)
+	case evt.ConvoDefs_LogAddReaction != nil:
+		logEvt := evt.ConvoDefs_LogAddReaction
+		b.HandleReaction(ctx, logEvt.ConvoId, logEvt.Rev, reactionTargetMessageID(logEvt.Message.ConvoDefs_MessageView, logEvt.Message.ConvoDefs_DeletedMessageView), logEvt.Reaction, false)
+	case evt.ConvoDefs_LogRemoveReaction != nil:
+		logEvt := evt.ConvoDefs_LogRemoveReaction
+		b.HandleReaction(ctx, logEvt.ConvoId, logEvt.Rev, reactionTargetMessageID(logEvt.Message.ConvoDefs_MessageView, logEvt.Message.ConvoDefs_DeletedMessageView), logEvt.Reaction, true)
 	default:
 	}
+}
+
+func reactionTargetMessageID(msgView *chat.ConvoDefs_MessageView, deletedMsgView *chat.ConvoDefs_DeletedMessageView) string {
+	if msgView != nil {
+		return msgView.Id
+	} else if deletedMsgView != nil {
+		return deletedMsgView.Id
+	}
+	return ""
+}
+
+func (b *BlueskyClient) HandleReaction(ctx context.Context, convoID, rev, msgID string, reaction *chat.ConvoDefs_ReactionView, remove bool) {
+	log := zerolog.Ctx(ctx)
+	if msgID == "" || reaction == nil || reaction.Sender == nil {
+		log.Warn().Str("chat_id", convoID).Str("rev", rev).Msg("Dropping reaction event with missing message or reaction data")
+		return
+	}
+	sender, err := b.makeEventSender(reaction.Sender.Did)
+	if err != nil {
+		log.Err(err).Msg("Failed to parse reaction sender DID")
+		return
+	}
+	evtType := bridgev2.RemoteEventReaction
+	meta := simplevent.EventMeta{
+		LogContext: func(c zerolog.Context) zerolog.Context {
+			return c.
+				Str("chat_id", convoID).
+				Str("rev", rev).
+				Str("message_id", msgID).
+				Str("sender_id", string(sender.Sender))
+		},
+		PortalKey: b.makePortalKey(convoID),
+		Sender:    sender,
+	}
+	if remove {
+		evtType = bridgev2.RemoteEventReactionRemove
+	} else if createdAt, err := syntax.ParseDatetimeTime(reaction.CreatedAt); err == nil {
+		meta.Timestamp = createdAt
+	}
+	meta.Type = evtType
+	emoji := variationselector.FullyQualify(reaction.Value)
+	b.UserLogin.QueueRemoteEvent(&simplevent.Reaction{
+		EventMeta:     meta,
+		TargetMessage: makeMessageID(makePortalID(convoID), msgID),
+		EmojiID:       networkid.EmojiID(emoji),
+		Emoji:         emoji,
+	})
 }
 
 func (b *BlueskyClient) HandleNewMessage(ctx context.Context, evt *chat.ConvoDefs_LogCreateMessage) {
