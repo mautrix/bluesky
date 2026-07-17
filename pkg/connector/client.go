@@ -84,6 +84,7 @@ func (b *BlueskyClient) Connect(ctx context.Context) {
 		})
 		return
 	}
+	b.resyncOwnProfile(ctx)
 	err = b.fetchInbox(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to fetch inbox during startup")

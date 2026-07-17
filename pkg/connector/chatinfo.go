@@ -94,11 +94,46 @@ func (b *BlueskyClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) 
 	if err != nil {
 		return nil, err
 	}
+	return b.wrapUserInfo(profile), nil
+}
+
+func (b *BlueskyClient) wrapUserInfo(profile *bsky.ActorDefs_ProfileViewDetailed) *bridgev2.UserInfo {
 	return &bridgev2.UserInfo{
 		Identifiers: []string{profile.Did, fmt.Sprintf("bluesky:%s", profile.Handle)},
 		Name:        ptr.Ptr(b.Main.Config.FormatDisplayname(ptr.Val(profile.DisplayName), profile.Handle, profile.Did)),
 		Avatar:      b.wrapAvatar(ptr.Val(profile.Avatar)),
-	}, nil
+	}
+}
+
+// resyncOwnProfile syncs the logged-in user's own ghost and mirrors the name and avatar into the login's remote profile.
+func (b *BlueskyClient) resyncOwnProfile(ctx context.Context) {
+	log := zerolog.Ctx(ctx)
+	ownDID := parseUserLoginID(b.UserLogin.ID)
+	ownUserID, err := makeUserIDFromString(ownDID)
+	if err != nil {
+		log.Err(err).Msg("Failed to parse own user ID")
+		return
+	}
+	profile, err := bsky.ActorGetProfile(ctx, b.XRPC, ownDID)
+	if err != nil {
+		log.Err(err).Msg("Failed to fetch own profile")
+		return
+	}
+	ghost, err := b.UserLogin.Bridge.GetGhostByID(ctx, ownUserID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get own ghost")
+		return
+	}
+	ghost.UpdateInfo(ctx, b.wrapUserInfo(profile))
+	displayName := ptr.Val(profile.DisplayName)
+	if b.UserLogin.RemoteProfile.Name != displayName || b.UserLogin.RemoteProfile.Avatar != ghost.AvatarMXC {
+		b.UserLogin.RemoteProfile.Name = displayName
+		b.UserLogin.RemoteProfile.Avatar = ghost.AvatarMXC
+		err = b.UserLogin.Save(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to save updated remote profile")
+		}
+	}
 }
 
 func (b *BlueskyClient) wrapAvatar(url string) *bridgev2.Avatar {

@@ -147,6 +147,7 @@ func (p *PasswordLogin) SubmitUserInput(ctx context.Context, input map[string]st
 	ul.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 	go func(ctx context.Context) {
 		bc := ul.Client.(*BlueskyClient)
+		bc.resyncOwnProfile(ctx)
 		err = bc.fetchInbox(ctx)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to fetch inbox after login")

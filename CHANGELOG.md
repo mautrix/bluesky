@@ -4,6 +4,7 @@
 * Added support for reactions in both directions, including backfill.
 * Added support for replies in both directions, including backfill.
 * Added support for group chat names, including live renames and member changes.
+* Added syncing of the logged-in user's display name and avatar to the bridge profile.
 
 # v0.1.2 (2025-07-16)
 
