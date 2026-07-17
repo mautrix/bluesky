@@ -251,7 +251,7 @@ func (b *BlueskyClient) startPolling() {
 func (b *BlueskyClient) pollOnce(ctx context.Context) error {
 	log := zerolog.Ctx(ctx)
 	meta := b.UserLogin.Metadata.(*UserLoginMetadata)
-	resp, err := chat.ConvoGetLog(ctx, b.ChatRPC, meta.Cursor)
+	resp, err := convoGetLogWithReply(ctx, b.ChatRPC, meta.Cursor)
 	if err != nil {
 		return err
 	}

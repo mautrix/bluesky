@@ -31,11 +31,11 @@ import (
 	"maunium.net/go/mautrix/event"
 )
 
-func (b *BlueskyClient) HandleEvent(ctx context.Context, evt *chat.ConvoGetLog_Output_Logs_Elem) {
+func (b *BlueskyClient) HandleEvent(ctx context.Context, evt *logElemWithReply) {
 	zerolog.Ctx(ctx).Trace().Any("evt", evt).Msg("Received event")
 	switch {
 	case evt.ConvoDefs_LogCreateMessage != nil:
-		b.HandleNewMessage(ctx, evt.ConvoDefs_LogCreateMessage)
+		b.HandleNewMessage(ctx, evt.ConvoDefs_LogCreateMessage, evt.ReplyToID)
 	case evt.ConvoDefs_LogAddReaction != nil:
 		logEvt := evt.ConvoDefs_LogAddReaction
 		b.HandleReaction(ctx, logEvt.ConvoId, logEvt.Rev, reactionTargetMessageID(logEvt.Message.ConvoDefs_MessageView, logEvt.Message.ConvoDefs_DeletedMessageView), logEvt.Reaction, false)
@@ -93,12 +93,13 @@ func (b *BlueskyClient) HandleReaction(ctx context.Context, convoID, rev, msgID 
 	})
 }
 
-func (b *BlueskyClient) HandleNewMessage(ctx context.Context, evt *chat.ConvoDefs_LogCreateMessage) {
+func (b *BlueskyClient) HandleNewMessage(ctx context.Context, evt *chat.ConvoDefs_LogCreateMessage, replyToID string) {
 	sender, sentAt, msgID, msgData, err := b.parseMessageDetails(evt.Message.ConvoDefs_MessageView, evt.Message.ConvoDefs_DeletedMessageView)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to parse message details")
 		return
 	}
+	msgData = wrapMessageData(msgData, replyToID)
 	b.UserLogin.QueueRemoteEvent(&simplevent.Message[any]{
 		EventMeta: simplevent.EventMeta{
 			Type: bridgev2.RemoteEventMessage,
@@ -152,18 +153,41 @@ func (b *BlueskyClient) parseMessageDetails(
 	return
 }
 
+// messageWithReply pairs a message view with the ID of the message it replies to, which the indigo structs don't carry.
+type messageWithReply struct {
+	*chat.ConvoDefs_MessageView
+	ReplyToID string
+}
+
+func wrapMessageData(msgData any, replyToID string) any {
+	if msgView, ok := msgData.(*chat.ConvoDefs_MessageView); ok && replyToID != "" {
+		return &messageWithReply{ConvoDefs_MessageView: msgView, ReplyToID: replyToID}
+	}
+	return msgData
+}
+
+func convertMessageView(msgView *chat.ConvoDefs_MessageView) *bridgev2.ConvertedMessage {
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgText,
+				Body:    msgView.Text,
+			},
+		}},
+	}
+}
+
 func convertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, data any) (*bridgev2.ConvertedMessage, error) {
 	switch typedData := any(data).(type) {
 	case *chat.ConvoDefs_MessageView:
-		return &bridgev2.ConvertedMessage{
-			Parts: []*bridgev2.ConvertedMessagePart{{
-				Type: event.EventMessage,
-				Content: &event.MessageEventContent{
-					MsgType: event.MsgText,
-					Body:    typedData.Text,
-				},
-			}},
-		}, nil
+		return convertMessageView(typedData), nil
+	case *messageWithReply:
+		converted := convertMessageView(typedData.ConvoDefs_MessageView)
+		converted.ReplyTo = &networkid.MessageOptionalPartID{
+			MessageID: makeMessageID(portal.ID, typedData.ReplyToID),
+		}
+		return converted, nil
 	case *chat.ConvoDefs_DeletedMessageView:
 		return &bridgev2.ConvertedMessage{
 			Parts: []*bridgev2.ConvertedMessagePart{{

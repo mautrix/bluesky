@@ -38,12 +38,20 @@ func (b *BlueskyClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.M
 	if !msg.Content.MsgType.IsText() {
 		return nil, fmt.Errorf("%w %s", bridgev2.ErrUnsupportedMessageType, msg.Content.MsgType)
 	}
-	resp, err := chat.ConvoSendMessage(ctx, b.ChatRPC, &chat.ConvoSendMessage_Input{
+	input := &sendMessageInputWithReply{
 		ConvoId: parsePortalID(msg.Portal.ID),
-		Message: &chat.ConvoDefs_MessageInput{
-			Text: msg.Content.Body,
+		Message: &messageInputWithReply{
+			ConvoDefs_MessageInput: chat.ConvoDefs_MessageInput{
+				Text: msg.Content.Body,
+			},
 		},
-	})
+	}
+	if msg.ReplyTo != nil {
+		if _, replyMsgID := parseMessageID(msg.ReplyTo.ID); replyMsgID != "" {
+			input.Message.ReplyTo = &replyRef{MessageId: replyMsgID}
+		}
+	}
+	resp, err := convoSendMessageWithReply(ctx, b.ChatRPC, input)
 	if err != nil {
 		return nil, err
 	}

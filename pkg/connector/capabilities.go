@@ -39,6 +39,7 @@ func (b *BlueskyConnector) GetBridgeInfoVersion() (info, capabilities int) {
 var roomCaps = &event.RoomFeatures{
 	ID:            "fi.mau.bluesky.capabilities.2026_07_17",
 	MaxTextLength: 10000,
+	Reply:         event.CapLevelFullySupported,
 	Reaction:      event.CapLevelFullySupported,
 	ReactionCount: maxReactionsPerMessage,
 }

@@ -35,7 +35,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 	if !params.Forward {
 		return nil, fmt.Errorf("backward backfill is not yet supported")
 	}
-	resp, err := chat.ConvoGetMessages(ctx, b.ChatRPC, parsePortalID(params.Portal.ID), "", min(int64(params.Count), 100))
+	resp, err := convoGetMessagesWithReply(ctx, b.ChatRPC, parsePortalID(params.Portal.ID), "", min(int64(params.Count), 100))
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +49,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 		} else if params.AnchorMessage != nil && !sentAt.After(params.AnchorMessage.Timestamp) {
 			continue
 		}
+		msgData = wrapMessageData(msgData, msg.ReplyToID)
 		data, err := convertMessage(ctx, params.Portal, params.Portal.Bridge.Bot, msgData)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to convert message")
