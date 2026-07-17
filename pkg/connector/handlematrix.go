@@ -95,7 +95,11 @@ func (b *BlueskyClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.
 	if msgID == "" {
 		return nil, fmt.Errorf("failed to parse target message ID")
 	}
-	_, err := chat.ConvoAddReaction(ctx, b.ChatRPC, &chat.ConvoAddReaction_Input{
+	err := b.removePrunedReactions(ctx, msg, msgID)
+	if err != nil {
+		return nil, err
+	}
+	_, err = chat.ConvoAddReaction(ctx, b.ChatRPC, &chat.ConvoAddReaction_Input{
 		ConvoId:   parsePortalID(msg.Portal.ID),
 		MessageId: msgID,
 		Value:     msg.PreHandleResp.Emoji,
@@ -103,7 +107,46 @@ func (b *BlueskyClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.
 	if err != nil {
 		return nil, err
 	}
-	return &database.Reaction{}, nil
+	return &database.Reaction{
+		Metadata: &ReactionMetadata{Value: msg.PreHandleResp.Emoji},
+	}, nil
+}
+
+// removePrunedReactions removes the reactions the central bridge is about to prune, as Bluesky rejects additions past the cap instead of replacing the oldest.
+func (b *BlueskyClient) removePrunedReactions(ctx context.Context, msg *bridgev2.MatrixReaction, msgID string) error {
+	if len(msg.ExistingReactionsToKeep) == 0 {
+		return nil
+	}
+	allReactions, err := msg.Portal.Bridge.DB.Reaction.GetAllToMessageBySender(ctx, msg.Portal.Receiver, msg.TargetMessage.ID, msg.PreHandleResp.SenderID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing reactions: %w", err)
+	}
+	keep := make(map[networkid.EmojiID]struct{}, len(msg.ExistingReactionsToKeep))
+	for _, reaction := range msg.ExistingReactionsToKeep {
+		keep[reaction.EmojiID] = struct{}{}
+	}
+	for _, reaction := range allReactions {
+		if _, isKept := keep[reaction.EmojiID]; isKept {
+			continue
+		}
+		_, err = chat.ConvoRemoveReaction(ctx, b.ChatRPC, &chat.ConvoRemoveReaction_Input{
+			ConvoId:   parsePortalID(msg.Portal.ID),
+			MessageId: msgID,
+			Value:     reactionRemoveValue(reaction),
+		})
+		if err != nil {
+			return fmt.Errorf("failed to remove old reaction: %w", err)
+		}
+	}
+	return nil
+}
+
+// reactionRemoveValue returns the exact value to remove on Bluesky, preferring the stored raw value over the normalized emoji ID.
+func reactionRemoveValue(reaction *database.Reaction) string {
+	if meta, ok := reaction.Metadata.(*ReactionMetadata); ok && meta.Value != "" {
+		return meta.Value
+	}
+	return string(reaction.EmojiID)
 }
 
 func (b *BlueskyClient) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
@@ -114,7 +157,7 @@ func (b *BlueskyClient) HandleMatrixReactionRemove(ctx context.Context, msg *bri
 	_, err := chat.ConvoRemoveReaction(ctx, b.ChatRPC, &chat.ConvoRemoveReaction_Input{
 		ConvoId:   parsePortalID(msg.Portal.ID),
 		MessageId: msgID,
-		Value:     string(msg.TargetReaction.EmojiID),
+		Value:     reactionRemoveValue(msg.TargetReaction),
 	})
 	return err
 }

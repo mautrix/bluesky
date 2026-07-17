@@ -23,6 +23,7 @@ import (
 	"net/http"
 
 	"github.com/bluesky-social/indigo/api/bsky"
+	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
@@ -32,14 +33,14 @@ import (
 )
 
 func (b *BlueskyClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
-	chatInfo, err := convoGetConvoWithKind(ctx, b.ChatRPC, parsePortalID(portal.ID))
+	chatInfo, err := chat.ConvoGetConvo(ctx, b.ChatRPC, parsePortalID(portal.ID))
 	if err != nil {
 		return nil, err
 	}
 	return b.wrapChatInfo(ctx, chatInfo.Convo), nil
 }
 
-func (b *BlueskyClient) wrapChatInfo(ctx context.Context, chatInfo *convoViewWithKind) *bridgev2.ChatInfo {
+func (b *BlueskyClient) wrapChatInfo(ctx context.Context, chatInfo *chat.ConvoDefs_ConvoView) *bridgev2.ChatInfo {
 	info := &bridgev2.ChatInfo{
 		Members: &bridgev2.ChatMemberList{
 			IsFull:           true,
@@ -52,10 +53,17 @@ func (b *BlueskyClient) wrapChatInfo(ctx context.Context, chatInfo *convoViewWit
 	if chatInfo.Muted {
 		info.UserLocal.MutedUntil = &event.MutedForever
 	}
-	if chatInfo.IsGroup {
+	var groupInfo *chat.ConvoDefs_GroupConvo
+	if chatInfo.Kind != nil {
+		groupInfo = chatInfo.Kind.ConvoDefs_GroupConvo
+	}
+	if groupInfo != nil {
 		info.Type = ptr.Ptr(database.RoomTypeGroupDM)
-		info.Name = ptr.Ptr(chatInfo.GroupName)
-	} else if len(chatInfo.Members) == 2 {
+		info.Name = ptr.Ptr(groupInfo.Name)
+		// convoView only contains the most relevant members of a group, so the list must not be treated as complete.
+		info.Members.IsFull = false
+		info.Members.TotalMemberCount = int(groupInfo.MemberCount)
+	} else if (chatInfo.Kind != nil && chatInfo.Kind.ConvoDefs_DirectConvo != nil) || len(chatInfo.Members) == 2 {
 		info.Type = ptr.Ptr(database.RoomTypeDM)
 	}
 	for _, member := range chatInfo.Members {

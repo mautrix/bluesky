@@ -22,9 +22,7 @@ import (
 	"slices"
 
 	"github.com/bluesky-social/indigo/api/chat"
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/variationselector"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 )
@@ -78,24 +76,17 @@ func (b *BlueskyClient) convertBackfillReactions(ctx context.Context, msgView *c
 	}
 	reactions := make([]*bridgev2.BackfillReaction, 0, len(msgView.Reactions))
 	for _, reaction := range msgView.Reactions {
-		if reaction == nil || reaction.Sender == nil {
+		sender, emoji, createdAt, ok := b.convertReactionView(ctx, reaction)
+		if !ok {
 			continue
 		}
-		sender, err := b.makeEventSender(reaction.Sender.Did)
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to parse reaction sender DID")
-			continue
-		}
-		emoji := variationselector.FullyQualify(reaction.Value)
-		backfillReaction := &bridgev2.BackfillReaction{
-			Sender:  sender,
-			EmojiID: networkid.EmojiID(emoji),
-			Emoji:   emoji,
-		}
-		if createdAt, err := syntax.ParseDatetimeTime(reaction.CreatedAt); err == nil {
-			backfillReaction.Timestamp = createdAt
-		}
-		reactions = append(reactions, backfillReaction)
+		reactions = append(reactions, &bridgev2.BackfillReaction{
+			Sender:     sender,
+			EmojiID:    networkid.EmojiID(emoji),
+			Emoji:      emoji,
+			Timestamp:  createdAt,
+			DBMetadata: &ReactionMetadata{Value: reaction.Value},
+		})
 	}
 	return reactions
 }

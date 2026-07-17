@@ -3,7 +3,7 @@
 * Switched to calendar versioning.
 * Added support for reactions in both directions, including backfill.
 * Added support for replies in both directions, including backfill.
-* Added support for group chat names, including live renames.
+* Added support for group chat names, including live renames and member changes.
 
 # v0.1.2 (2025-07-16)
 

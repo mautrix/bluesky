@@ -23,10 +23,12 @@ import (
 
 func (b *BlueskyConnector) GetDBMetaTypes() database.MetaTypes {
 	return database.MetaTypes{
-		Portal:   nil,
-		Ghost:    nil,
-		Message:  nil,
-		Reaction: nil,
+		Portal:  nil,
+		Ghost:   nil,
+		Message: nil,
+		Reaction: func() any {
+			return &ReactionMetadata{}
+		},
 		UserLogin: func() any {
 			return &UserLoginMetadata{}
 		},
@@ -37,4 +39,9 @@ type UserLoginMetadata struct {
 	Auth   *xrpc.AuthInfo `json:"auth"`
 	Host   string         `json:"host"`
 	Cursor string         `json:"cursor"`
+}
+
+type ReactionMetadata struct {
+	// Value is the exact reaction value stored on Bluesky, which may differ from the normalized emoji used as the reaction ID.
+	Value string `json:"value,omitempty"`
 }

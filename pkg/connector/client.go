@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/api/atproto"
+	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/bluesky-social/indigo/util"
 	"github.com/bluesky-social/indigo/xrpc"
@@ -163,7 +164,7 @@ func (b *BlueskyClient) nextAccessTokenExpiry() time.Time {
 func (b *BlueskyClient) fetchInbox(ctx context.Context) error {
 	const limit = 20
 	// TODO support paginating list
-	chats, err := convoListConvosWithKind(ctx, b.ChatRPC, "", limit)
+	chats, err := chat.ConvoListConvos(ctx, b.ChatRPC, "", "", limit, "", "", "")
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,7 @@ func (b *BlueskyClient) fetchInbox(ctx context.Context) error {
 			},
 			ChatInfo:            b.wrapChatInfo(ctx, chatInfo),
 			LatestMessageTS:     latestMessageTS,
-			BundledBackfillData: &chatInfo.ConvoDefs_ConvoView,
+			BundledBackfillData: chatInfo,
 		})
 	}
 	return nil
