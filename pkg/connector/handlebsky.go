@@ -42,8 +42,27 @@ func (b *BlueskyClient) HandleEvent(ctx context.Context, evt *logElemWithReply) 
 	case evt.ConvoDefs_LogRemoveReaction != nil:
 		logEvt := evt.ConvoDefs_LogRemoveReaction
 		b.HandleReaction(ctx, logEvt.ConvoId, logEvt.Rev, reactionTargetMessageID(logEvt.Message.ConvoDefs_MessageView, logEvt.Message.ConvoDefs_DeletedMessageView), logEvt.Reaction, true)
+	case evt.RawType == logEditGroupType:
+		b.HandleGroupEdit(ctx, evt.RawConvoID)
 	default:
 	}
+}
+
+func (b *BlueskyClient) HandleGroupEdit(ctx context.Context, convoID string) {
+	if convoID == "" {
+		zerolog.Ctx(ctx).Warn().Msg("Dropping group edit event without convo ID")
+		return
+	}
+	b.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventChatResync,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.Str("chat_id", convoID)
+			},
+			PortalKey: b.makePortalKey(convoID),
+		},
+		GetChatInfoFunc: b.GetChatInfo,
+	})
 }
 
 func reactionTargetMessageID(msgView *chat.ConvoDefs_MessageView, deletedMsgView *chat.ConvoDefs_DeletedMessageView) string {
