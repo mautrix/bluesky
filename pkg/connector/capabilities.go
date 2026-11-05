@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/event"
 )
 
@@ -32,15 +33,33 @@ func (b *BlueskyConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilitie
 	return generalCaps
 }
 
+// Relay patch 0001: capabilities 2 = the features below. bridgev2 re-sends
+// com.beeper.room_features to every portal at startup only when this number
+// moves; fetchInbox resyncs just the newest 20 convos.
 func (b *BlueskyConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 1
+	return 1, 2
 }
 
+// Relay patch 0001: delete chat (leaveConvo) everywhere, and in DMs block_user
+// (an app.bsky.graph.block record) + report_spam (createReport reasonSpam).
+// The IDs changed with the contents so clients drop the cached features.
 var roomCaps = &event.RoomFeatures{
-	ID:            "fi.mau.bluesky.capabilities.2025_03_16",
+	ID:            "fi.mau.bluesky.capabilities.2026_10_30",
 	MaxTextLength: 10000,
+	DeleteChat:    true,
+}
+
+var dmCaps = &event.RoomFeatures{
+	ID:            "fi.mau.bluesky.capabilities.2026_10_30+dm",
+	MaxTextLength: 10000,
+	DeleteChat:    true,
+	BlockUser:     true,
+	ReportSpam:    true,
 }
 
 func (b *BlueskyClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
+	if portal != nil && portal.RoomType == database.RoomTypeDM {
+		return dmCaps
+	}
 	return roomCaps
 }

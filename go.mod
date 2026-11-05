@@ -11,16 +11,16 @@ require (
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/rs/zerolog v1.35.1
 	github.com/whyrusleeping/go-did v0.0.0-20240828165449-bcaa7ae21371
-	go.mau.fi/util v0.9.9
+	go.mau.fi/util v0.11.0
 	gopkg.in/yaml.v3 v3.0.1
-	maunium.net/go/mautrix v0.28.0
+	maunium.net/go/mautrix v0.32.0
 )
 
 require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/coder/websocket v1.8.14 // indirect
+	github.com/coder/websocket v1.8.15 // indirect
 	github.com/coreos/go-systemd/v22 v22.7.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/earthboundkid/versioninfo/v2 v2.24.1 // indirect
@@ -56,7 +56,7 @@ require (
 	github.com/lib/pq v1.12.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.44 // indirect
+	github.com/mattn/go-sqlite3 v1.14.52 // indirect
 	github.com/matttproud/golang_protobuf_extensions/v2 v2.0.0 // indirect
 	github.com/minio/sha256-simd v1.0.1 // indirect
 	github.com/mr-tron/base58 v1.2.0 // indirect
@@ -66,7 +66,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3 // indirect
 	github.com/multiformats/go-varint v0.0.7 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
-	github.com/petermattis/goid v0.0.0-20260330135022-df67b199bc81 // indirect
+	github.com/petermattis/goid v0.0.0-20260918085751-abfca077860b // indirect
 	github.com/polydawn/refmt v0.89.1-0.20221221234430-40501e09de1f // indirect
 	github.com/prometheus/client_golang v1.17.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -76,12 +76,12 @@ require (
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/tidwall/gjson v1.19.0 // indirect
+	github.com/tidwall/gjson v1.20.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/whyrusleeping/cbor-gen v0.2.1-0.20241030202151-b7a6831be65e // indirect
-	github.com/yuin/goldmark v1.8.2 // indirect
+	github.com/yuin/goldmark v1.8.6 // indirect
 	gitlab.com/yawning/secp256k1-voi v0.0.0-20230925100816-f2616030848b // indirect
 	gitlab.com/yawning/tuplehash v0.0.0-20230713102510-df83abbf9a02 // indirect
 	go.mau.fi/zeroconfig v0.2.0 // indirect
@@ -92,16 +92,16 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/crypto v0.51.0 // indirect
-	golang.org/x/exp v0.0.0-20260508232706-74f9aab9d74a // indirect
-	golang.org/x/mod v0.36.0 // indirect
-	golang.org/x/net v0.54.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.44.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e // indirect
+	golang.org/x/mod v0.42.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
-	google.golang.org/protobuf v1.36.11 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	lukechampine.com/blake3 v1.2.1 // indirect
 	maunium.net/go/mauflag v1.0.0 // indirect
