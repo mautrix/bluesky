@@ -63,10 +63,11 @@ func (p *PasswordLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) 
 		Instructions: "",
 		UserInputParams: &bridgev2.LoginUserInputParams{
 			Fields: []bridgev2.LoginInputDataField{{
-				Type:        bridgev2.LoginInputFieldTypeDomain,
-				ID:          "domain",
-				Name:        "Server",
-				Description: "Bluesky server. The default server is `bsky.social`",
+				Type:         bridgev2.LoginInputFieldTypeDomain,
+				ID:           "domain",
+				Name:         "Server",
+				Description:  "Bluesky server. The default server is `bsky.social`",
+				DefaultValue: "bsky.social",
 			}, {
 				Type:        bridgev2.LoginInputFieldTypeUsername,
 				ID:          "username",
