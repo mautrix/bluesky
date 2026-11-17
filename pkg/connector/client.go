@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -37,6 +39,10 @@ import (
 )
 
 func (b *BlueskyConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {
+	if oldClient, ok := login.Client.(*BlueskyClient); ok {
+		// Relogins reuse the login and replace the client without disconnecting it, so stop the old client's polling first.
+		oldClient.Disconnect()
+	}
 	meta := login.Metadata.(*UserLoginMetadata)
 	x := &xrpc.Client{
 		Client:    util.RobustHTTPClient(),
@@ -69,6 +75,8 @@ type BlueskyClient struct {
 	ChatRPC   *xrpc.Client
 
 	stopPolling atomic.Pointer[context.CancelFunc]
+	// saveLock guards mutating UserLogin fields (including metadata) and calling UserLogin.Save.
+	saveLock sync.Mutex
 }
 
 var _ bridgev2.NetworkAPI = (*BlueskyClient)(nil)
@@ -115,6 +123,8 @@ func (b *BlueskyClient) refreshToken(ctx context.Context) error {
 	if resp.Did != meta.Auth.Did {
 		return fmt.Errorf("DID changed from %s to %s", meta.Auth.Did, resp.Did)
 	}
+	b.saveLock.Lock()
+	defer b.saveLock.Unlock()
 	meta.Auth.RefreshJwt = resp.RefreshJwt
 	meta.Auth.AccessJwt = resp.AccessJwt
 	log := zerolog.Ctx(ctx)
@@ -124,8 +134,6 @@ func (b *BlueskyClient) refreshToken(ctx context.Context) error {
 			Str("new_handle", resp.Handle).
 			Msg("Handle changed")
 		meta.Auth.Handle = resp.Handle
-		b.UserLogin.RemoteName = resp.Handle
-		b.UserLogin.RemoteProfile.Username = resp.Handle
 	}
 	if resp.DidDoc != nil {
 		ident, err := parseDIDDoc(resp.DidDoc)
@@ -164,7 +172,7 @@ func (b *BlueskyClient) nextAccessTokenExpiry() time.Time {
 func (b *BlueskyClient) fetchInbox(ctx context.Context) error {
 	const limit = 20
 	// TODO support paginating list
-	chats, err := chat.ConvoListConvos(ctx, b.ChatRPC, "", limit, "", "")
+	chats, err := chat.ConvoListConvos(ctx, b.ChatRPC, "", "", limit, "", "", "")
 	if err != nil {
 		return err
 	}
@@ -203,6 +211,7 @@ func (b *BlueskyClient) startPolling() {
 	log := b.UserLogin.Log.With().Str("action", "bluesky polling").Logger()
 	ctx = log.WithContext(ctx)
 	log.Info().Time("next_token_expiry", b.nextAccessTokenExpiry()).Msg("Starting polling")
+	go b.resyncOwnProfileAndLog(ctx)
 	ticker := time.NewTicker(PollInterval)
 	expiryTimer := time.NewTimer(time.Until(b.nextAccessTokenExpiry()) - 2*time.Minute)
 	defer func() {
@@ -241,6 +250,7 @@ func (b *BlueskyClient) startPolling() {
 				log.Debug().Time("next_expiry", nextExpiry).Msg("Refreshed token")
 				expiryTimer.Reset(time.Until(nextExpiry) - 2*time.Minute)
 				b.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+				go b.resyncOwnProfileAndLog(ctx)
 			}
 		case <-ctxDone:
 			return
@@ -251,7 +261,7 @@ func (b *BlueskyClient) startPolling() {
 func (b *BlueskyClient) pollOnce(ctx context.Context) error {
 	log := zerolog.Ctx(ctx)
 	meta := b.UserLogin.Metadata.(*UserLoginMetadata)
-	resp, err := chat.ConvoGetLog(ctx, b.ChatRPC, meta.Cursor)
+	resp, err := convoGetLogWithReply(ctx, b.ChatRPC, meta.Cursor)
 	if err != nil {
 		return err
 	}
@@ -259,13 +269,58 @@ func (b *BlueskyClient) pollOnce(ctx context.Context) error {
 		b.HandleEvent(ctx, log)
 	}
 	if resp.Cursor != nil && *resp.Cursor != meta.Cursor {
+		b.saveLock.Lock()
 		meta.Cursor = *resp.Cursor
 		err = b.UserLogin.Save(ctx)
+		b.saveLock.Unlock()
 		if err != nil {
 			log.Err(err).Msg("Failed to save updated polling cursor")
 		}
 	}
 	return nil
+}
+
+// resyncOwnProfile syncs the logged-in user's own ghost and mirrors their remote profile into the user login.
+func (b *BlueskyClient) resyncOwnProfile(ctx context.Context) error {
+	ownDID := parseUserLoginID(b.UserLogin.ID)
+	sender, err := b.makeEventSender(ownDID)
+	if err != nil {
+		return fmt.Errorf("failed to parse own user ID: %w", err)
+	}
+	profile, err := b.getProfile(ctx, ownDID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch own profile: %w", err)
+	}
+	ghost, err := b.UserLogin.Bridge.GetGhostByID(ctx, sender.Sender)
+	if err != nil {
+		return fmt.Errorf("failed to get own ghost: %w", err)
+	}
+	ghost.UpdateInfo(ctx, b.wrapUserInfo(profile))
+	displayName := ptr.Val(profile.DisplayName)
+	if displayName == "" {
+		displayName = profile.Handle
+	}
+	b.saveLock.Lock()
+	defer b.saveLock.Unlock()
+	b.UserLogin.RemoteName = profile.Handle
+	b.UserLogin.RemoteProfile.Username = profile.Handle
+	b.UserLogin.RemoteProfile.Name = displayName
+	if ghost.AvatarSet {
+		// AvatarSet is false when the avatar reupload failed, in which case the ghost's MXC may be stale.
+		b.UserLogin.RemoteProfile.Avatar = ghost.AvatarMXC
+	}
+	err = b.UserLogin.Save(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to save remote profile: %w", err)
+	}
+	return nil
+}
+
+func (b *BlueskyClient) resyncOwnProfileAndLog(ctx context.Context) {
+	err := b.resyncOwnProfile(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to sync own profile")
+	}
 }
 
 func (b *BlueskyClient) Disconnect() {

@@ -24,6 +24,7 @@ import (
 	"github.com/bluesky-social/indigo/api/chat"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 )
 
 var _ bridgev2.BackfillingNetworkAPI = (*BlueskyClient)(nil)
@@ -32,7 +33,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 	if !params.Forward {
 		return nil, fmt.Errorf("backward backfill is not yet supported")
 	}
-	resp, err := chat.ConvoGetMessages(ctx, b.ChatRPC, parsePortalID(params.Portal.ID), "", min(int64(params.Count), 100))
+	resp, err := convoGetMessagesWithReply(ctx, b.ChatRPC, parsePortalID(params.Portal.ID), "", min(int64(params.Count), 100))
 	if err != nil {
 		return nil, err
 	}
@@ -46,6 +47,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 		} else if params.AnchorMessage != nil && !sentAt.After(params.AnchorMessage.Timestamp) {
 			continue
 		}
+		msgData = wrapMessageData(msgData, msg.ReplyToID)
 		data, err := convertMessage(ctx, params.Portal, params.Portal.Bridge.Bot, msgData)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to convert message")
@@ -57,6 +59,7 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 			ID:               makeMessageID(params.Portal.ID, msgID),
 			Timestamp:        sentAt,
 			StreamOrder:      sentAt.UnixMilli(),
+			Reactions:        b.convertBackfillReactions(ctx, msg.ConvoDefs_MessageView),
 		})
 	}
 	chatInfo, ok := params.BundledData.(*chat.ConvoDefs_ConvoView)
@@ -65,4 +68,25 @@ func (b *BlueskyClient) FetchMessages(ctx context.Context, params bridgev2.Fetch
 		Forward:  true,
 		MarkRead: ok && chatInfo != nil && chatInfo.UnreadCount == 0,
 	}, nil
+}
+
+func (b *BlueskyClient) convertBackfillReactions(ctx context.Context, msgView *chat.ConvoDefs_MessageView) []*bridgev2.BackfillReaction {
+	if msgView == nil || len(msgView.Reactions) == 0 {
+		return nil
+	}
+	reactions := make([]*bridgev2.BackfillReaction, 0, len(msgView.Reactions))
+	for _, reaction := range msgView.Reactions {
+		sender, emoji, createdAt, ok := b.convertReactionView(ctx, reaction)
+		if !ok {
+			continue
+		}
+		reactions = append(reactions, &bridgev2.BackfillReaction{
+			Sender:     sender,
+			EmojiID:    networkid.EmojiID(emoji),
+			Emoji:      emoji,
+			Timestamp:  createdAt,
+			DBMetadata: &ReactionMetadata{Value: reaction.Value},
+		})
+	}
+	return reactions
 }
