@@ -26,6 +26,7 @@ import (
 	"github.com/bluesky-social/indigo/util"
 	"github.com/bluesky-social/indigo/xrpc"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/l10n"
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
@@ -34,8 +35,8 @@ import (
 )
 
 var loginFlows = []bridgev2.LoginFlow{{
-	Name:        "Username & password",
-	Description: "Log in by entering your Bluesky username and password",
+	Name:        msgFlowPasswordName.Message(),
+	Description: msgFlowPasswordDescription.Message(),
 	ID:          "password",
 }}
 
@@ -58,27 +59,26 @@ var _ bridgev2.LoginProcessUserInput = (*PasswordLogin)(nil)
 
 func (p *PasswordLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	return &bridgev2.LoginStep{
-		Type:         bridgev2.LoginStepTypeUserInput,
-		StepID:       "fi.mau.bluesky.password",
-		Instructions: "",
+		Type:   bridgev2.LoginStepTypeUserInput,
+		StepID: "fi.mau.bluesky.password",
 		UserInputParams: &bridgev2.LoginUserInputParams{
 			Fields: []bridgev2.LoginInputDataField{{
 				Type:         bridgev2.LoginInputFieldTypeDomain,
 				ID:           "domain",
-				Name:         "Server",
-				Description:  "Bluesky server. The default server is `bsky.social`",
+				Name:         msgFieldDomainName.Message(),
+				Description:  msgFieldDomainDescription.Message(),
 				DefaultValue: "bsky.social",
 			}, {
 				Type:           bridgev2.LoginInputFieldTypeUsername,
 				ID:             "username",
-				Name:           "Username or email",
-				Description:    "Bluesky account handle or email address",
+				Name:           msgFieldUsernameName.Message(),
+				Description:    msgFieldUsernameDescription.Message(),
 				AutofillDomain: "bsky.app",
 			}, {
 				Type:           bridgev2.LoginInputFieldTypePassword,
 				ID:             "password",
-				Name:           "Password",
-				Description:    "Bluesky account password",
+				Name:           msgFieldPasswordName.Message(),
+				Description:    msgFieldPasswordDescription.Message(),
 				AutofillDomain: "bsky.app",
 			}},
 		},
@@ -159,7 +159,7 @@ func (p *PasswordLogin) SubmitUserInput(ctx context.Context, input map[string]st
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
 		StepID:       "fi.mau.bluesky.complete",
-		Instructions: fmt.Sprintf("Successfully logged in as %s", resp.Handle),
+		Instructions: msgStepCompleteInstructions.Render(l10n.Params{"handle": resp.Handle}),
 		CompleteParams: &bridgev2.LoginCompleteParams{
 			UserLoginID: ul.ID,
 			UserLogin:   ul,
