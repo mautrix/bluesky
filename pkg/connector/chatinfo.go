@@ -53,7 +53,17 @@ func (b *BlueskyClient) wrapChatInfo(ctx context.Context, chatInfo *chat.ConvoDe
 	if chatInfo.Muted {
 		info.UserLocal.MutedUntil = &event.MutedForever
 	}
-	if len(chatInfo.Members) == 2 {
+	var groupInfo *chat.ConvoDefs_GroupConvo
+	if chatInfo.Kind != nil {
+		groupInfo = chatInfo.Kind.ConvoDefs_GroupConvo
+	}
+	if groupInfo != nil {
+		info.Type = ptr.Ptr(database.RoomTypeGroupDM)
+		info.Name = ptr.Ptr(groupInfo.Name)
+		// convoView only contains the most relevant members of a group, so the list must not be treated as complete.
+		info.Members.IsFull = false
+		info.Members.TotalMemberCount = int(groupInfo.MemberCount)
+	} else if (chatInfo.Kind != nil && chatInfo.Kind.ConvoDefs_DirectConvo != nil) || len(chatInfo.Members) == 2 {
 		info.Type = ptr.Ptr(database.RoomTypeDM)
 	}
 	for _, member := range chatInfo.Members {
@@ -80,15 +90,23 @@ func (b *BlueskyClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) 
 	if actorID == "" {
 		return nil, fmt.Errorf("failed to parse ghost ID")
 	}
-	profile, err := bsky.ActorGetProfile(ctx, b.XRPC, actorID)
+	profile, err := b.getProfile(ctx, actorID)
 	if err != nil {
 		return nil, err
 	}
+	return b.wrapUserInfo(profile), nil
+}
+
+func (b *BlueskyClient) getProfile(ctx context.Context, actorID string) (*bsky.ActorDefs_ProfileViewDetailed, error) {
+	return bsky.ActorGetProfile(ctx, b.XRPC, actorID)
+}
+
+func (b *BlueskyClient) wrapUserInfo(profile *bsky.ActorDefs_ProfileViewDetailed) *bridgev2.UserInfo {
 	return &bridgev2.UserInfo{
 		Identifiers: []string{profile.Did, fmt.Sprintf("bluesky:%s", profile.Handle)},
 		Name:        ptr.Ptr(b.Main.Config.FormatDisplayname(ptr.Val(profile.DisplayName), profile.Handle, profile.Did)),
 		Avatar:      b.wrapAvatar(ptr.Val(profile.Avatar)),
-	}, nil
+	}
 }
 
 func (b *BlueskyClient) wrapAvatar(url string) *bridgev2.Avatar {

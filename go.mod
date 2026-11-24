@@ -7,7 +7,7 @@ toolchain go1.26.3
 tool go.mau.fi/util/cmd/maubuild
 
 require (
-	github.com/bluesky-social/indigo v0.0.0-20260415173638-b5f5bed0bd3c
+	github.com/bluesky-social/indigo v0.0.0-20260629160527-dfe5578fd537
 	github.com/lestrrat-go/jwx/v2 v2.1.6
 	github.com/rs/zerolog v1.35.1
 	github.com/whyrusleeping/go-did v0.0.0-20240828165449-bcaa7ae21371
