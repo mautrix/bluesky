@@ -73,6 +73,7 @@ func (p *PasswordLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) 
 				ID:             "username",
 				Name:           msgFieldUsernameName.Message(),
 				Description:    msgFieldUsernameDescription.Message(),
+				Placeholder:    l10n.Unlocalized("alice.bsky.social"),
 				AutofillDomain: "bsky.app",
 			}, {
 				Type:           bridgev2.LoginInputFieldTypePassword,
